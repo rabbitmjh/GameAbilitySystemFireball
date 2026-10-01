@@ -9,6 +9,7 @@
 class UProjectileMovementComponent;
 class UNiagaraSystem;
 class USphereComponent;
+class UGameplayEffect;
 UCLASS()
 class GAS_API AFireball : public AActor
 {
@@ -28,6 +29,9 @@ protected:
 	void OnHit(AActor* SelfActor, AActor* OtherActor, FVector NormalImpulse, const FHitResult& Hit);
 
 protected:
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Fireball|Damage")
+	TSubclassOf<UGameplayEffect> BurnEffectClass;
+
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UProjectileMovementComponent> Movement;
 

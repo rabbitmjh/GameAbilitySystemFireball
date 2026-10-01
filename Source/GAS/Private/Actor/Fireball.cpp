@@ -12,12 +12,20 @@
 #include "AbilitySystemComponent.h"
 #include "GAS/EnemyAttributeSet.h"
 #include "GAS/Effect/FireballDamageEffect.h"
+#include "UObject/ConstructorHelpers.h"
 
 // Sets default values
 AFireball::AFireball()
 {
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
+
+	static ConstructorHelpers::FClassFinder<UGameplayEffect> BurnEffect(
+		TEXT("/Game/Blueprints/GAS/Effect/GE_Burn"));
+	if (BurnEffect.Succeeded())
+	{
+		BurnEffectClass = BurnEffect.Class;
+	}
 
 	SphereComponent = CreateDefaultSubobject<USphereComponent>(TEXT("SphereComponent"));
 	SetRootComponent(SphereComponent);
@@ -61,6 +69,8 @@ void AFireball::OnHit(AActor* SelfActor, AActor* OtherActor, FVector NormalImpul
 	if (SourceASC && TargetASC &&
 		TargetASC->HasAttributeSetForAttribute(UEnemyAttributeSet::GetDamageAttribute()))
 	{
+		const FGameplayTag BurnTag = FGameplayTag::RequestGameplayTag(FName(TEXT("State.Burn")));
+		const float ImpactDamage = TargetASC->HasMatchingGameplayTag(BurnTag) ? 20.0f : 10.0f;
 		FGameplayEffectContextHandle Context = SourceASC->MakeEffectContext();
 		Context.AddSourceObject(this);
 		Context.AddHitResult(Hit);
@@ -68,7 +78,24 @@ void AFireball::OnHit(AActor* SelfActor, AActor* OtherActor, FVector NormalImpul
 			UFireballDamageEffect::StaticClass(), 1.0f, Context);
 		if (Spec.IsValid())
 		{
+			Spec.Data->SetSetByCallerMagnitude(FName(TEXT("FireballDamage")), ImpactDamage);
 			SourceASC->ApplyGameplayEffectSpecToTarget(*Spec.Data.Get(), TargetASC);
+		}
+
+		if (BurnEffectClass)
+		{
+			FGameplayEffectSpecHandle BurnSpec = SourceASC->MakeOutgoingSpec(BurnEffectClass, 1.0f, Context);
+			if (BurnSpec.IsValid())
+			{
+				FGameplayTagContainer BurnTags;
+				BurnTags.AddTag(BurnTag);
+				TargetASC->RemoveActiveEffectsWithGrantedTags(BurnTags);
+				SourceASC->ApplyGameplayEffectSpecToTarget(*BurnSpec.Data.Get(), TargetASC);
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Fireball: BurnEffectClass is not assigned"));
 		}
 	}
 	if (HitVFX)
